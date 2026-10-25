@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#09140f">
+<meta name="description" content="Interaktiver Morsecode-Trainer mit Entscheidungsbaum, Morsetaste und Übungsmodus.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MorseTree">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>MorseTree</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>
+/* Layout: one-screen instrument — header, PCB board (pan/zoom tree), mode panel, keyer at the thumb */
+:root{
+  --board:#09140f;
+  --board-2:#0e1f17;
+  --mask:#14301f;
+  --copper:#b98447;
+  --copper-dim:#4f3a24;
+  --silk:#e4ece2;
+  --silk-dim:#8fa89a;
+  --led-off:#123224;
+  --led-g:#5dfc9c;
+  --led-r:#ff5a4e;
+  --amber:#ffb547;
+  --f-display:"Chakra Petch", "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--board);color:var(--silk);font-family:var(--f-body);overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+.app{height:100%;box-sizing:border-box;max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:8px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:10px}
+
+/* Header */
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:8px;margin-right:auto}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:1.35rem;letter-spacing:.06em;text-transform:uppercase;margin:0}
+.chip{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.12em;color:var(--copper);border:1px solid var(--copper-dim);padding:1px 6px;border-radius:3px}
+.tabs{display:flex;background:var(--board-2);border:1px solid var(--mask);border-radius:10px;padding:3px;gap:2px;order:3;width:100%}
+.tabs button{flex:1;border:0;background:transparent;padding:7px 6px;border-radius:7px;font-family:var(--f-display);font-weight:600;font-size:.86rem;letter-spacing:.08em;text-transform:uppercase;color:var(--silk-dim);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--mask);color:var(--led-g);box-shadow:inset 0 0 0 1px #1f4a33}
+@media (min-width:640px){.tabs{order:0;width:auto}.tabs button{flex:none;padding:7px 14px}}
+.icon-btn{width:38px;height:38px;border-radius:9px;border:1px solid var(--mask);background:var(--board-2);display:grid;place-items:center;cursor:pointer;color:var(--silk-dim)}
+.icon-btn svg{width:20px;height:20px}
+
+/* Board */
+.board{flex:1;min-height:0;position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--mask);
+  background:radial-gradient(120% 80% at 50% 0%, #11281c 0%, var(--board-2) 60%, var(--board) 100%)}
+#tree{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#tree:active{cursor:grabbing}
+.zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:34px;height:34px;border-radius:8px;border:1px solid var(--mask);background:#0b1a13e6;color:var(--silk);font-family:var(--f-mono);font-size:1rem;cursor:pointer}
+.hintline{position:absolute;left:12px;bottom:10px;font-family:var(--f-mono);font-size:.68rem;color:var(--silk-dim);letter-spacing:.04em;pointer-events:none}
+
+/* SVG parts */
+.board-rect{fill:none;stroke:#1d3d2b;stroke-width:1.5}
+.silk{fill:var(--silk-dim);font-family:var(--f-mono);font-size:10px;letter-spacing:.14em}
+.silk-strong{fill:var(--silk);font-family:var(--f-display);font-weight:700;font-size:12px;letter-spacing:.16em}
+.hole{fill:var(--board);stroke:var(--copper-dim);stroke-width:3}
+.trace{fill:none;stroke:var(--copper-dim);stroke-width:3;stroke-linejoin:round;stroke-linecap:round;transition:stroke .12s}
+.trace.on{stroke:var(--led-g);filter:url(#glow)}
+.trace.hint{stroke:var(--amber);filter:url(#glow)}
+.trace.err{stroke:var(--led-r);filter:url(#glow)}
+.pad{cursor:pointer}
+.pad .ring{fill:var(--board-2);stroke:var(--copper);stroke-width:2.5;transition:stroke .12s}
+.pad .led{fill:var(--led-off);transition:fill .12s}
+.pad .lt{fill:var(--silk);font-family:var(--f-display);font-weight:700;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.pad .ct{fill:var(--silk-dim);font-family:var(--f-mono);font-size:9px;text-anchor:middle;pointer-events:none;letter-spacing:.06em}
+.pad.on .led{fill:var(--led-g);filter:url(#glow)}
+.pad.on .lt{fill:#06120c}
+.pad.hint .led{fill:var(--amber);filter:url(#glow)}
+.pad.hint .lt{fill:#1a1104}
+.pad.err .led{fill:var(--led-r);filter:url(#glow)}
+.pad.err .lt{fill:#1a0605}
+.pad.cur .ring{stroke:var(--silk)}
+.hide-codes .ct{display:none}
+
+/* Panel */
+.panel{flex:none;background:var(--board-2);border:1px solid var(--mask);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.label{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--silk-dim)}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tape{flex:1;min-width:0;font-family:var(--f-mono);font-size:1.15rem;letter-spacing:.12em;white-space:nowrap;overflow-x:auto;color:var(--led-g);min-height:1.6em;line-height:1.6em;scrollbar-width:none}
+.tape .bad{color:var(--led-r)}
+.tape .cursor{display:inline-block;width:.55em;height:1.05em;vertical-align:-2px;background:var(--led-g);opacity:.55;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.btn{border:1px solid #23503a;background:var(--mask);border-radius:8px;padding:7px 11px;font-family:var(--f-display);font-weight:600;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;color:var(--silk)}
+.btn.ghost{background:transparent;border-color:var(--mask);color:var(--silk-dim)}
+.btn.primary{background:#173f2a;border-color:#2d7a50;color:var(--led-g)}
+.seg{display:flex;border:1px solid var(--mask);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:6px 10px;font-family:var(--f-display);font-weight:600;font-size:.76rem;letter-spacing:.08em;text-transform:uppercase;color:var(--silk-dim);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--mask);color:var(--led-g)}
+
+.quiz-main{display:flex;align-items:center;gap:12px}
+.target{display:flex;gap:4px;flex-wrap:wrap}
+.cell{min-width:34px;height:42px;padding:0 4px;box-sizing:border-box;border:1px solid var(--mask);border-radius:6px;display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:1.5rem;color:var(--silk)}
+.cell.done{color:var(--led-g);border-color:#2d7a50}
+.cell.now{border-color:var(--silk);box-shadow:0 0 0 1px var(--silk) inset}
+.feedback{font-family:var(--f-mono);font-size:.82rem;color:var(--silk-dim);min-height:1.3em}
+.feedback.ok{color:var(--led-g)}.feedback.bad{color:var(--led-r)}.feedback.hint{color:var(--amber)}
+.score{margin-left:auto;font-family:var(--f-mono);font-size:.78rem;color:var(--silk-dim);text-align:right;font-variant-numeric:tabular-nums}
+.score b{color:var(--silk);font-weight:500}
+
+.lookup-in{width:100%;box-sizing:border-box;background:var(--board);border:1px solid var(--mask);border-radius:8px;padding:9px 10px;color:var(--silk);font-family:var(--f-mono);font-size:1rem;letter-spacing:.06em;text-transform:uppercase}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:thin}
+.lchip{flex:none;border:1px solid var(--mask);background:var(--board);border-radius:7px;padding:4px 8px;text-align:center;cursor:pointer;min-width:30px}
+.lchip .l{font-family:var(--f-display);font-weight:700;font-size:1.05rem;display:block}
+.lchip .c{font-family:var(--f-mono);font-size:.75rem;color:var(--copper);display:block;letter-spacing:.08em}
+.lchip.active{border-color:var(--led-g);box-shadow:0 0 10px #5dfc9c55}
+.lgap{flex:none;width:10px;border-left:1px dashed var(--mask)}
+.note{font-family:var(--f-mono);font-size:.7rem;color:var(--silk-dim)}
+
+/* Keyer */
+.keyer{flex:none;display:flex;flex-direction:column;gap:8px}
+.strip{display:flex;align-items:center;gap:10px;background:#07100c;border:1px solid var(--mask);border-radius:10px;padding:6px 8px 6px 12px;min-height:30px}
+.buf{display:flex;align-items:center;gap:6px;flex:1;min-width:0;height:18px}
+.buf i{display:block;height:10px;border-radius:5px;background:var(--led-g);box-shadow:0 0 8px #5dfc9caa}
+.buf i.dit{width:10px}.buf i.dah{width:30px}
+.buf.bad i{background:var(--led-r);box-shadow:0 0 8px #ff5a4eaa}
+.buf .ph{font-family:var(--f-mono);font-size:.7rem;color:var(--silk-dim);letter-spacing:.1em}
+.cand{font-family:var(--f-display);font-weight:700;font-size:1.3rem;min-width:2ch;text-align:center;color:var(--led-g)}
+.cand.bad{color:var(--led-r)}
+.del{width:34px;height:30px;border-radius:7px;border:1px solid var(--mask);background:var(--board-2);cursor:pointer;color:var(--silk-dim);display:grid;place-items:center}
+.keys{display:grid;grid-template-columns:1fr;gap:10px}
+.buf i.pend{opacity:.4;box-shadow:none}
+.key .kh{font-family:var(--f-mono);font-size:.68rem;letter-spacing:.06em;color:var(--silk-dim);font-weight:400}
+.key .kt{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.key .sym{transition:width .08s,height .08s,border-radius .08s}
+.key{-webkit-touch-callout:none;
+height:84px;border-radius:14px;border:1px solid #2a5a40;background:linear-gradient(#143826,#0d2619);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px;touch-action:manipulation;user-select:none;-webkit-user-select:none;box-shadow:0 3px 0 #061109}
+.key:active,.key.down{transform:translateY(2px);box-shadow:0 1px 0 #061109;background:linear-gradient(#1b4a32,#123422)}
+.key .sym{display:block;background:var(--led-g);border-radius:6px;box-shadow:0 0 10px #5dfc9c99}
+.key .sym.dit{width:14px;height:14px;border-radius:50%}
+.key .sym.dah{width:42px;height:12px}
+.key .kl{font-family:var(--f-display);font-weight:700;letter-spacing:.14em;font-size:.95rem}
+
+/* Settings sheet */
+.backdrop{position:fixed;inset:0;background:#020604b3;z-index:20}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;background:var(--board-2);border-top:1px solid #23503a;border-radius:16px 16px 0 0;max-height:85%;overflow-y:auto;
+  padding-left:max(18px, env(safe-area-inset-left, 0px));padding-right:max(18px, env(safe-area-inset-right, 0px));padding-top:16px;padding-bottom:calc(18px + env(safe-area-inset-bottom, 0px))}
+.sheet-in{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.sheet h2{font-family:var(--f-display);font-size:1.05rem;letter-spacing:.1em;text-transform:uppercase;margin:0;text-wrap:balance}
+.field{display:flex;flex-direction:column;gap:6px}
+.field-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.val{font-family:var(--f-mono);font-size:.8rem;color:var(--led-g);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--led-g)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.92rem}
+.toggle input{width:20px;height:20px;accent-color:var(--led-g)}
+.help{font-size:.78rem;color:var(--silk-dim);line-height:1.45;max-width:60ch}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><h1>MorseTree</h1><span class="chip">MT-01</span></div>
+    <nav class="tabs" role="tablist" aria-label="Modus">
+      <button role="tab" data-mode="tree" aria-selected="true" id="tab-tree">Baum</button>
+      <button role="tab" data-mode="quiz" aria-selected="false" id="tab-quiz">Übung</button>
+      <button role="tab" data-mode="lookup" aria-selected="false" id="tab-lookup">Nachschlagen</button>
+    </nav>
+    <button class="icon-btn" id="btnSettings" aria-label="Einstellungen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </header>
+
+  <section class="board" aria-label="Morsecode-Baum">
+    <svg id="tree" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Morse-Binärbaum, antippen zum Abspielen"></svg>
+    <div class="hintline" id="hintline">Knoten antippen · ziehen · zwei Finger zoomen · Desktop: Leertaste = Morsetaste</div>
+    <div class="zoom">
+      <button id="zIn" aria-label="Vergrößern">+</button>
+      <button id="zOut" aria-label="Verkleinern">−</button>
+      <button id="zFit" aria-label="Ganzen Baum zeigen">⤢</button>
+    </div>
+  </section>
+
+  <!-- Panel: Baum -->
+  <section class="panel" id="panel-tree">
+    <div class="row" style="justify-content:space-between"><span class="label">Ausgabe</span><span class="label" id="wpmLabel"></span></div>
+    <div class="row">
+      <div class="tape" id="tape" aria-live="polite"></div>
+      <button class="btn ghost" id="btnSpace">Leer</button>
+      <button class="btn ghost" id="btnClear">Löschen</button>
+    </div>
+  </section>
+
+  <!-- Panel: Übung -->
+  <section class="panel" id="panel-quiz" hidden>
+    <div class="row">
+      <div class="seg" id="quizType">
+        <button data-q="letter" aria-pressed="true">Buchstabe</button>
+        <button data-q="word" aria-pressed="false">Wort</button>
+        <button data-q="audio" aria-pressed="false">Hören</button>
+      </div>
+      <div class="score" id="score"></div>
+    </div>
+    <div class="quiz-main">
+      <div class="target" id="target"></div>
+      <div class="row" style="margin-left:auto">
+        <button class="btn ghost" id="btnReplay" hidden>Hören</button>
+        <button class="btn ghost" id="btnHint">Hinweis</button>
+        <button class="btn ghost" id="btnSkip">Weiter</button>
+      </div>
+    </div>
+    <div class="feedback" id="feedback" aria-live="polite"></div>
+  </section>
+
+  <!-- Panel: Nachschlagen -->
+  <section class="panel" id="panel-lookup" hidden>
+    <div class="row">
+      <input class="lookup-in" id="lookupIn" type="text" value="SOS HALLO WELT" autocomplete="off" spellcheck="false" aria-label="Text zum Umwandeln" style="flex:1;width:auto;min-width:0">
+      <button class="btn primary" id="btnPlayAll">Abspielen</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="note" id="lookupNote"></div>
+  </section>
+
+  <!-- Keyer -->
+  <section class="keyer" id="keyer">
+    <div class="strip">
+      <div class="buf" id="buf"></div>
+      <div class="cand" id="cand"></div>
+      <button class="del" id="btnDel" aria-label="Eingabe zurücknehmen">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 5h11v14H9l-6-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/></svg>
+      </button>
+    </div>
+    <div class="keys" id="keys"></div>
+  </section>
+</div>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-label="Einstellungen">
+  <div class="sheet-in">
+    <div class="row" style="justify-content:space-between"><h2>Einstellungen</h2><button class="btn ghost" id="btnClose">Fertig</button></div>
+
+    <div class="field">
+      <span class="label">Baum-Ausrichtung</span>
+      <div class="seg" id="orient">
+        <button data-o="dah" aria-pressed="true">Strich links</button>
+        <button data-o="dit" aria-pressed="false">Punkt links</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-top"><label class="label" for="sFreq">Tonfrequenz</label><span class="val" id="vFreq"></span></div>
+      <input type="range" id="sFreq" min="500" max="900" step="10">
+    </div>
+    <div class="field">
+      <div class="field-top"><label class="label" for="sUnit">Punktlänge (Dit)</label><span class="val" id="vUnit"></span></div>
+      <input type="range" id="sUnit" min="50" max="140" step="5">
+      <p class="help" style="margin:0">Gilt für die Wiedergabe beim Abspielen. Strich = 3 Punkte, Pause im Zeichen = 1 Punkt, zwischen Zeichen = 3, zwischen Wörtern = 7. Tempo nach PARIS-Norm: WpM = 1200 ÷ Punktlänge in ms.</p>
+    </div>
+    <div class="field">
+      <div class="field-top"><label class="label" for="sThr">Grenze Punkt / Strich</label><span class="val" id="vThr"></span></div>
+      <input type="range" id="sThr" min="100" max="500" step="10">
+      <p class="help" style="margin:0">Drückst du die Taste kürzer als diesen Wert, zählt es als Punkt, sonst als Strich. Während du hältst, wechselt die Anzeige an der Taste von · zu –, sobald die Grenze überschritten ist.</p>
+    </div>
+    <div class="field">
+      <div class="field-top"><label class="label" for="sGap">Pause bis Zeichenende</label><span class="val" id="vGap"></span></div>
+      <input type="range" id="sGap" min="300" max="2000" step="50">
+      <p class="help" style="margin:0">So lange wartet die Taste nach dem letzten Signal, bevor das Zeichen abgeschlossen wird.</p>
+    </div>
+    <div class="field">
+      <div class="field-top"><label class="label" for="sVol">Lautstärke</label><span class="val" id="vVol"></span></div>
+      <input type="range" id="sVol" min="0" max="100" step="5">
+    </div>
+    <label class="toggle"><span>Ziffern-Ebene (5. Ebene) anzeigen</span><input type="checkbox" id="sDigits"></label>
+    <label class="toggle"><span>Codes unter den Buchstaben</span><input type="checkbox" id="sCodes"></label>
+    <label class="toggle"><span>Umlaute und CH in der Übung</span><input type="checkbox" id="sUml"></label>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const MORSE = {A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..',
+  'Ä':'.-.-','Ö':'---.','Ü':'..--','CH':'----','0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....','6':'-....','7':'--...','8':'---..','9':'----.'};
+const C2L = {}; for (const k in MORSE) C2L[MORSE[k]] = k;
+const show = c => c.replace(/\./g,'·').replace(/-/g,'–');
+const WORDS = ['SOS','BAUM','FUNK','CODE','TASTE','HALLO','MORSE','PUNKT','STRICH','SIGNAL','ANTENNE','WELLE','RUFEN','FREQUENZ','LICHT','QUARZ','PEGEL','EMPFANG','SENDER','KANAL'];
+
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+
+/* ---------- Settings ---------- */
+const DEF = {freq:700, unit:90, thr:200, gap:900, vol:50, ditLeft:false, digits:false, codes:true, uml:false};
+let S = {...DEF};
+try { const raw = localStorage.getItem('morsetree.v1'); if (raw) S = {...DEF, ...JSON.parse(raw)}; } catch (e) {}
+const save = () => { try { localStorage.setItem('morsetree.v1', JSON.stringify(S)); } catch (e) {} };
+
+/* ---------- Audio ---------- */
+let ac = null, master = null, seqBus = null, timers = [];
+function ensureAudio(){
+  if (!ac) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ac = new AC({latencyHint:'interactive'});
+    master = ac.createGain(); master.connect(ac.destination);
+  }
+  master.gain.value = (S.vol/100) * 0.4;
+  if (ac.state === 'suspended') ac.resume();
+  return true;
+}
+function tone(start, dur, bus){
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.value = S.freq;
+  g.gain.setValueAtTime(0, start);
+  g.gain.linearRampToValueAtTime(1, start + 0.005);
+  g.gain.setValueAtTime(1, start + dur - 0.005);
+  g.gain.linearRampToValueAtTime(0, start + dur);
+  o.connect(g); g.connect(bus || master);
+  o.start(start); o.stop(start + dur + 0.02);
+}
+function stopPlayback(){
+  timers.forEach(clearTimeout); timers = [];
+  if (seqBus) { try { seqBus.disconnect(); } catch (e) {} seqBus = null; }
+  document.querySelectorAll('.lchip.active').forEach(c => c.classList.remove('active'));
+  playingAll = false; $('btnPlayAll').textContent = 'Abspielen';
+}
+function later(ms, fn){ timers.push(setTimeout(fn, Math.max(0, ms))); }
+/* tokens: [{code, ref?}] or {word:true}; onSym(tok, i), onTok(tok), onEnd() */
+function playSequence(tokens, cb = {}){
+  if (!ensureAudio()) return;
+  stopPlayback();
+  seqBus = ac.createGain(); seqBus.connect(master);
+  const u = S.unit / 1000;
+  let t = ac.currentTime + 0.04;
+  const ms = x => (x - ac.currentTime) * 1000;
+  tokens.forEach(tok => {
+    if (tok.word) { t += 4*u; return; }
+    later(ms(t), () => cb.onTok && cb.onTok(tok));
+    [...tok.code].forEach((s, i) => {
+      const d = s === '.' ? u : 3*u;
+      tone(t, d, seqBus);
+      later(ms(t), () => cb.onSym && cb.onSym(tok, i));
+      t += d + u;
+    });
+    t += 2*u;
+  });
+  later(ms(t), () => { cb.onEnd && cb.onEnd(); });
+}
+
+/* ---------- Tree geometry ---------- */
+const svg = $('tree');
+let G = {}, traceEls = {}, padEls = {};
+function nodePos(code){
+  let x = .5, w = .25;
+  for (const s of code) { const right = (s === '.') !== S.ditLeft; x += (right ? 1 : -1) * w; w /= 2; }
+  return {x: x * G.W, y: G.top + code.length * G.row};
+}
+function buildTree(){
+  const maxD = S.digits ? 5 : 4;
+  G.W = maxD === 5 ? 1320 : 760; G.row = maxD === 5 ? 80 : 90; G.top = 62; G.H = G.top + maxD*G.row + 52; G.r = maxD === 5 ? 14 : 16;
+  svg.innerHTML = ''; traceEls = {}; padEls = {};
+  const defs = el('defs', {}, svg);
+  const f = el('filter', {id:'glow', x:'-60%', y:'-60%', width:'220%', height:'220%'}, defs);
+  el('feGaussianBlur', {stdDeviation:'3', result:'b'}, f);
+  const m = el('feMerge', {}, f); el('feMergeNode', {in:'b'}, m); el('feMergeNode', {in:'SourceGraphic'}, m);
+  const pat = el('pattern', {id:'grid', width:'20', height:'20', patternUnits:'userSpaceOnUse'}, defs);
+  el('circle', {cx:'10', cy:'10', r:'0.9', fill:'#1a3a29'}, pat);
+
+  el('rect', {x:4, y:4, width:G.W-8, height:G.H-8, rx:18, fill:'url(#grid)'}, svg);
+  el('rect', {x:4, y:4, width:G.W-8, height:G.H-8, rx:18, class:'board-rect'}, svg);
+  [[22,22],[G.W-22,22],[22,G.H-22],[G.W-22,G.H-22]].forEach(([x,y]) => el('circle', {cx:x, cy:y, r:6, class:'hole'}, svg));
+  el('text', {x:40, y:27, class:'silk-strong'}, svg).textContent = 'MORSETREE';
+  el('text', {x:G.W-40, y:27, class:'silk', 'text-anchor':'end'}, svg).textContent = 'MT-01 · REV.A · ' + (S.digits ? '5' : '4') + ' EBENEN';
+  const L = S.ditLeft ? '◂ DIT  ·' : '◂ DAH  –', R = S.ditLeft ? '–  DAH ▸' : '·  DIT ▸';
+  const root = nodePos('');
+  el('text', {x:root.x - 34, y:root.y + 4, class:'silk', 'text-anchor':'end'}, svg).textContent = L;
+  el('text', {x:root.x + 34, y:root.y + 4, class:'silk'}, svg).textContent = R;
+
+  const gT = el('g', {}, svg), gP = el('g', {}, svg);
+  let level = [''], all = [''];
+  for (let d = 1; d <= maxD; d++) {
+    const next = [];
+    level.forEach(c => ['-', '.'].forEach(s => { const k = c + s; if (d <= 4 || C2L[k]) next.push(k); }));
+    // keep depth-5 parents reachable
+    all = all.concat(next); level = next.filter(k => d < 4 || true);
+  }
+  const r = G.r;
+  all.forEach(code => {
+    if (!code) return;
+    const p = nodePos(code.slice(0, -1)), c = nodePos(code);
+    const s = Math.sign(c.x - p.x), y1 = p.y + G.row * .42, ch = Math.min(9, Math.abs(c.x - p.x) / 2);
+    const d = `M${p.x},${p.y + r} L${p.x},${y1 - ch} L${p.x + s*ch},${y1} L${c.x - s*ch},${y1} L${c.x},${y1 + ch} L${c.x},${c.y - r}`;
+    traceEls[code] = el('path', {d, class:'trace'}, gT);
+  });
+  all.forEach(code => {
+    const c = nodePos(code), letter = C2L[code];
+    const g = el('g', {class:'pad', 'data-code':code, transform:`translate(${c.x},${c.y})`}, gP);
+    if (!code) {
+      el('circle', {r:r + 2, class:'ring'}, g); el('circle', {r:r * .55, class:'led'}, g);
+      el('text', {y:-r - 9, class:'silk', 'text-anchor':'middle'}, svg).setAttribute('transform', `translate(${c.x},${c.y})`);
+      svg.lastChild.textContent = 'START';
+      padEls[''] = g; return;
+    }
+    el('circle', {r, class:'ring'}, g);
+    el('circle', {r:r * .78, class:'led'}, g);
+    if (letter) {
+      const t = el('text', {class:'lt', 'font-size': letter.length > 1 ? r * .78 : r * 1.02}, g); t.textContent = letter;
+      el('text', {y:r + 12, class:'ct'}, g).textContent = show(code);
+    }
+    const title = el('title', {}, g); title.textContent = (letter || '') + ' ' + show(code);
+    padEls[code] = g;
+  });
+  svg.classList.toggle('hide-codes', !S.codes);
+  fit();
+}
+
+/* ---------- Lights ---------- */
+function clearLights(){ svg.querySelectorAll('.on,.err,.hint,.cur').forEach(e => e.classList.remove('on','err','hint','cur')); }
+function lightPath(code, cls = 'on'){
+  if (padEls['']) padEls[''].classList.add(cls);
+  let lastOk = '';
+  for (let i = 1; i <= code.length; i++) {
+    const p = code.slice(0, i);
+    if (!padEls[p]) break;
+    traceEls[p] && traceEls[p].classList.add(cls); padEls[p].classList.add(cls); lastOk = p;
+  }
+  if (padEls[lastOk]) padEls[lastOk].classList.add('cur');
+  return lastOk === code;
+}
+let flashT = null;
+function flash(code, cls, ms = 700, then){
+  clearTimeout(flashT); clearLights(); lightPath(code, cls);
+  flashT = setTimeout(() => { clearLights(); then && then(); }, ms);
+}
+
+/* ---------- Pan / zoom ---------- */
+let vb = {x:0, y:0, w:1, h:1};
+const applyVB = () => svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+function fit(){ vb = {x:0, y:0, w:G.W, h:G.H}; applyVB(); }
+function toSvg(cx, cy){ const pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+function zoomAt(cx, cy, f){
+  const p = toSvg(cx, cy);
+  const nw = Math.min(G.W * 1.5, Math.max(G.W / 7, vb.w / f)); f = vb.w / nw;
+  vb.x = p.x - (p.x - vb.x) / f; vb.y = p.y - (p.y - vb.y) / f; vb.w = nw; vb.h = nw * G.H / G.W; applyVB();
+}
+function panBy(dx, dy){ const k = svg.getScreenCTM().a; vb.x -= dx / k; vb.y -= dy / k; applyVB(); }
+const ptrs = new Map(); let drag = null, pinch = null;
+svg.addEventListener('pointerdown', e => {
+  try { svg.setPointerCapture(e.pointerId); } catch (_) {}
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size === 1) {
+    const padEl = e.target.closest && e.target.closest('[data-code]');
+    drag = {sx:e.clientX, sy:e.clientY, moved:false, code: padEl ? padEl.getAttribute('data-code') : null};
+  } else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    pinch = {d: Math.hypot(a.x - b.x, a.y - b.y), mx:(a.x + b.x) / 2, my:(a.y + b.y) / 2};
+    if (drag) drag.moved = true;
+  }
+});
+svg.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const prev = ptrs.get(e.pointerId); const cur = {x:e.clientX, y:e.clientY}; ptrs.set(e.pointerId, cur);
+  if (ptrs.size === 1 && drag) {
+    if (!drag.moved && Math.hypot(cur.x - drag.sx, cur.y - drag.sy) > 8) drag.moved = true;
+    if (drag.moved) panBy(cur.x - prev.x, cur.y - prev.y);
+  } else if (ptrs.size === 2 && pinch) {
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    panBy(mx - pinch.mx, my - pinch.my);
+    if (pinch.d > 0) zoomAt(mx, my, d / pinch.d);
+    pinch = {d, mx, my};
+  }
+});
+function endPtr(e){
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  if (ptrs.size < 2) pinch = null;
+  if (ptrs.size === 0) {
+    if (drag && !drag.moved && drag.code !== null && e.type === 'pointerup') onPadTap(drag.code);
+    drag = null;
+  }
+}
+svg.addEventListener('pointerup', endPtr); svg.addEventListener('pointercancel', endPtr);
+svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.15 : 1/1.15); }, {passive:false});
+const centerZoom = f => { const r = svg.getBoundingClientRect(); zoomAt(r.left + r.width/2, r.top + r.height/2, f); };
+$('zIn').onclick = () => centerZoom(1.3); $('zOut').onclick = () => centerZoom(1/1.3); $('zFit').onclick = fit;
+
+/* ---------- App state ---------- */
+let mode = 'tree';
+let buffer = '', commitT = null;
+let tape = [];
+const Q = {type:'letter', target:[], idx:0, hits:0, streak:0, best:0, solved:false, revealed:false};
+
+/* ---------- Keyer ---------- */
+/* Straight key: one button. Press duration decides Dit vs. Dah. Tone sounds exactly as long as the key is held. */
+let hold = null, keyEl = null, symEl = null;
+function renderKeys(){
+  $('keys').innerHTML = `<button class="key" id="mkey" aria-label="Morsetaste: kurz drücken für Punkt, lang drücken für Strich"><span class="sym dit" id="mkeySym"></span><span class="kt"><span class="kl">MORSETASTE</span><span class="kh" id="mkeyHint"></span></span></button>`;
+  keyEl = $('mkey'); symEl = $('mkeySym');
+  keyEl.addEventListener('pointerdown', e => { e.preventDefault(); try { keyEl.setPointerCapture(e.pointerId); } catch (_) {} keyDown(); });
+  keyEl.addEventListener('pointerup', keyUp);
+  keyEl.addEventListener('pointercancel', keyUp);
+  keyEl.addEventListener('contextmenu', e => e.preventDefault());
+  updateKeyHint();
+}
+function updateKeyHint(){ const h = $('mkeyHint'); if (h) h.textContent = `kurz · unter ${S.thr} ms   lang – ab ${S.thr} ms`; }
+function keyDown(){
+  if (mode === 'lookup' || hold) return;
+  if (!ensureAudio()) return;
+  stopPlayback(); clearTimeout(flashT); clearTimeout(commitT);
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime;
+  o.type = 'sine'; o.frequency.value = S.freq;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.005);
+  o.connect(g); g.connect(master); o.start(t);
+  hold = {o, g, t0: performance.now(), pend: '.'};
+  keyEl && keyEl.classList.add('down');
+  symEl && (symEl.className = 'sym dit');
+  hold.timer = setTimeout(() => { if (!hold) return; hold.pend = '-'; symEl && (symEl.className = 'sym dah'); renderBuffer('-'); }, S.thr);
+  renderBuffer('.');
+}
+function keyUp(){
+  if (!hold) return;
+  const h = hold; hold = null;
+  const dur = performance.now() - h.t0, t = ac.currentTime;
+  clearTimeout(h.timer);
+  h.g.gain.cancelScheduledValues(t);
+  h.g.gain.setValueAtTime(Math.min(1, h.g.gain.value), t);
+  h.g.gain.linearRampToValueAtTime(0, t + 0.006);
+  h.o.stop(t + 0.03);
+  keyEl && keyEl.classList.remove('down');
+  symEl && (symEl.className = 'sym dit');
+  addSym(dur < S.thr ? '.' : '-');
+}
+window.addEventListener('blur', keyUp);
+document.addEventListener('visibilitychange', () => { if (document.hidden) keyUp(); });
+function addSym(sym){
+  buffer += sym;
+  clearLights(); const ok = lightPath(buffer, 'on');
+  if (!ok) { const last = svg.querySelector('.pad.cur'); last && last.classList.add('err'); }
+  renderBuffer();
+  clearTimeout(commitT);
+  commitT = setTimeout(commit, S.gap);
+}
+function renderBuffer(pend){
+  const b = $('buf'), c = $('cand');
+  if (pend) {
+    b.classList.remove('bad');
+    b.innerHTML = [...buffer].map(s => `<i class="${s === '.' ? 'dit' : 'dah'}"></i>`).join('') + `<i class="${pend === '.' ? 'dit' : 'dah'} pend"></i>`;
+    c.textContent = ''; return;
+  }
+  if (!buffer) { b.innerHTML = `<span class="ph">${mode === 'quiz' ? 'EINGABE' : 'TASTE ODER BAUM'}</span>`; b.classList.remove('bad'); c.textContent = ''; c.classList.remove('bad'); return; }
+  b.innerHTML = [...buffer].map(s => `<i class="${s === '.' ? 'dit' : 'dah'}"></i>`).join('');
+  const L = C2L[buffer]; const deep = !padEls[buffer];
+  b.classList.toggle('bad', deep); c.classList.toggle('bad', !L);
+  c.textContent = L || '?';
+}
+function undoSym(){
+  if (!buffer) { if (mode === 'tree' && tape.length) { tape.pop(); renderTape(); } return; }
+  buffer = buffer.slice(0, -1); clearTimeout(commitT);
+  clearLights(); if (buffer) { lightPath(buffer); commitT = setTimeout(commit, S.gap); }
+  renderBuffer();
+}
+function commit(){
+  clearTimeout(commitT);
+  const code = buffer; buffer = ''; renderBuffer();
+  if (!code) return;
+  const L = C2L[code] || null;
+  if (mode === 'tree') {
+    tape.push(L ? {t:L} : {t:'?', bad:true}); renderTape();
+    flash(code, L ? 'on' : 'err', 650);
+  } else if (mode === 'quiz') answer(L, code);
+}
+
+/* ---------- Tree mode ---------- */
+function renderTape(){
+  const t = $('tape');
+  t.innerHTML = tape.slice(-80).map(x => x.bad ? `<span class="bad">?</span>` : (x.t === ' ' ? '&nbsp;' : x.t)).join('') + '<span class="cursor"></span>';
+  t.scrollLeft = t.scrollWidth;
+}
+function playCodeVisual(code, after){
+  clearLights();
+  playSequence([{code}], {
+    onSym: (tok, i) => { clearLights(); lightPath(code.slice(0, i + 1), 'on'); },
+    onEnd: () => { flashT = setTimeout(() => { clearLights(); after && after(); }, 350); }
+  });
+}
+function onPadTap(code){
+  if (!code) { clearLights(); return; }
+  clearTimeout(commitT); buffer = ''; renderBuffer();
+  const L = C2L[code];
+  if (mode === 'tree') {
+    playCodeVisual(code);
+    if (L) { tape.push({t:L}); renderTape(); }
+  } else if (mode === 'quiz') {
+    if (!ensureAudio()) return;
+    const u = S.unit / 1000; // short confirm blip of the code
+    playSequence([{code}]);
+    answer(L || null, code);
+  } else {
+    playCodeVisual(code);
+  }
+}
+
+/* ---------- Quiz ---------- */
+function pool(){
+  const base = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  return S.uml ? base.concat(['Ä','Ö','Ü','CH']) : base;
+}
+function newTarget(){
+  Q.idx = 0; Q.solved = false; Q.revealed = false;
+  if (Q.type === 'word') { let w; do { w = WORDS[Math.floor(Math.random() * WORDS.length)]; } while (Q.target.join('') === w && WORDS.length > 1); Q.target = tokenizeWord(w); }
+  else { const p = pool(); let l; do { l = p[Math.floor(Math.random() * p.length)]; } while (Q.target[0] === l && p.length > 1); Q.target = [l]; }
+  setFeedback(Q.type === 'audio' ? 'Hör zu und taste das Zeichen nach.' : 'Taste den Code oder tippe den Knoten im Baum.', '');
+  renderQuiz(); clearLights();
+  if (Q.type === 'audio') later(250, () => playSequence([{code:MORSE[Q.target[0]]}]));
+}
+function tokenizeWord(w){ const out = []; for (let i = 0; i < w.length; i++) { if (w[i] === 'C' && w[i+1] === 'H' && S.uml) { out.push('CH'); i++; } else out.push(w[i]); } return out; }
+function renderQuiz(){
+  const t = $('target');
+  t.innerHTML = Q.target.map((l, i) => {
+    const hidden = Q.type === 'audio' && !Q.solved && !Q.revealed;
+    const cls = i < Q.idx || Q.solved ? 'done' : (i === Q.idx && Q.target.length > 1 ? 'now' : '');
+    return `<div class="cell ${cls}">${hidden ? '?' : l}</div>`;
+  }).join('');
+  $('btnReplay').hidden = Q.type !== 'audio';
+  $('score').innerHTML = `Treffer <b>${Q.hits}</b> · Serie <b>${Q.streak}</b><br>Bestwert <b>${Q.best}</b>`;
+  document.querySelectorAll('#quizType button').forEach(b => b.setAttribute('aria-pressed', b.dataset.q === Q.type));
+}
+function setFeedback(msg, cls){ const f = $('feedback'); f.textContent = msg; f.className = 'feedback ' + (cls || ''); }
+function answer(L, code){
+  if (Q.solved) return;
+  const want = Q.target[Q.idx];
+  if (L === want) {
+    Q.idx++;
+    flash(code, 'on', 500);
+    if (Q.idx >= Q.target.length) {
+      Q.solved = true; Q.hits++; if (!Q.revealed) { Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
+      setFeedback(`Richtig: ${Q.target.join('')}  ${Q.target.map(l => show(MORSE[l])).join('  ')}`, 'ok');
+      renderQuiz(); later(1100, newTarget);
+    } else { setFeedback(`${want} richtig. Weiter mit Zeichen ${Q.idx + 1} von ${Q.target.length}.`, 'ok'); renderQuiz(); }
+  } else {
+    Q.streak = 0;
+    setFeedback(`${L ? L + ' (' + show(code) + ')' : show(code) + ' ist kein Zeichen'} – gesucht ist ${Q.type === 'audio' ? 'ein anderes Zeichen' : want}. Nochmal.`, 'bad');
+    renderQuiz();
+    flash(code, 'err', 800);
+  }
+}
+$('btnHint').onclick = () => {
+  if (mode !== 'quiz' || Q.solved) return;
+  const want = Q.target[Q.idx]; Q.revealed = true; Q.streak = 0;
+  setFeedback(`Hinweis: ${want} = ${show(MORSE[want])}`, 'hint'); renderQuiz();
+  clearTimeout(flashT); clearLights(); lightPath(MORSE[want], 'hint');
+  flashT = setTimeout(clearLights, 2200);
+};
+$('btnSkip').onclick = () => { Q.streak = 0; newTarget(); };
+$('btnReplay').onclick = () => { if (Q.target[0]) playSequence([{code:MORSE[Q.target[0]]}]); };
+document.querySelectorAll('#quizType button').forEach(b => b.onclick = () => { Q.type = b.dataset.q; newTarget(); });
+
+/* ---------- Lookup ---------- */
+let playingAll = false, lookTokens = [];
+function textTokens(txt){
+  const toks = [], ignored = new Set(); const s = txt.toUpperCase();
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (/\s/.test(ch)) { if (toks.length && !toks[toks.length - 1].word) toks.push({word:true}); continue; }
+    if (MORSE[ch]) toks.push({code:MORSE[ch], l:ch}); else ignored.add(ch);
+  }
+  while (toks.length && toks[toks.length - 1].word) toks.pop();
+  return {toks, ignored:[...ignored]};
+}
+function renderLookup(){
+  const {toks, ignored} = textTokens($('lookupIn').value);
+  lookTokens = toks;
+  const box = $('chips'); box.innerHTML = '';
+  toks.forEach(t => {
+    if (t.word) { const g = document.createElement('div'); g.className = 'lgap'; box.appendChild(g); return; }
+    const b = document.createElement('button'); b.className = 'lchip';
+    b.innerHTML = `<span class="l">${t.l}</span><span class="c">${show(t.code)}</span>`;
+    b.onclick = () => { stopPlayback(); playCodeVisual(t.code); };
+    t.ref = b; box.appendChild(b);
+  });
+  const units = toks.reduce((n, t) => t.word ? n + 4 : n + [...t.code].reduce((a, s) => a + (s === '.' ? 2 : 4), 0) + 2, 0);
+  const sec = (units * S.unit / 1000).toFixed(1);
+  $('lookupNote').textContent = (toks.length ? `${toks.filter(t => !t.word).length} Zeichen · ca. ${sec} s bei ${Math.round(1200 / S.unit)} WpM` : 'Text eingeben, um den Code zu sehen.') + (ignored.length ? ` · nicht im Code: ${ignored.join(' ')}` : '');
+}
+$('lookupIn').addEventListener('input', renderLookup);
+$('btnPlayAll').onclick = () => {
+  if (playingAll) { stopPlayback(); clearLights(); return; }
+  if (!lookTokens.length) return;
+  playSequence(lookTokens, {
+    onTok: t => { document.querySelectorAll('.lchip.active').forEach(c => c.classList.remove('active')); t.ref && t.ref.classList.add('active'); t.ref && t.ref.scrollIntoView({block:'nearest', inline:'center', behavior:'smooth'}); },
+    onSym: (t, i) => { clearLights(); lightPath(t.code.slice(0, i + 1)); },
+    onEnd: () => { stopPlayback(); clearLights(); }
+  });
+  playingAll = true; $('btnPlayAll').textContent = 'Stopp';
+};
+
+/* ---------- Modes ---------- */
+function setMode(m){
+  mode = m; stopPlayback(); clearTimeout(commitT); buffer = ''; clearLights();
+  document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.mode === m));
+  $('panel-tree').hidden = m !== 'tree'; $('panel-quiz').hidden = m !== 'quiz'; $('panel-lookup').hidden = m !== 'lookup';
+  $('keyer').hidden = m === 'lookup';
+  if (m === 'quiz' && !Q.target.length) newTarget(); else if (m === 'quiz') renderQuiz();
+  if (m === 'lookup') renderLookup();
+  renderBuffer();
+}
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+$('btnDel').onclick = undoSym;
+$('btnSpace').onclick = () => { if (tape.length && tape[tape.length - 1].t !== ' ') { tape.push({t:' '}); renderTape(); } };
+$('btnClear').onclick = () => { tape = []; renderTape(); clearLights(); };
+
+/* ---------- Keyboard ---------- */
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || !$('sheet').hidden) return;
+  if (e.key === ' ') { e.preventDefault(); if (!e.repeat) keyDown(); return; }
+  if (e.key === 'Enter') { e.preventDefault(); commit(); }
+  else if (e.key === 'Backspace') { e.preventDefault(); undoSym(); }
+});
+document.addEventListener('keyup', e => { if (e.key === ' ') { e.preventDefault(); keyUp(); } });
+
+/* ---------- Settings UI ---------- */
+function syncSettingsUI(){
+  $('sFreq').value = S.freq; $('vFreq').textContent = S.freq + ' Hz';
+  $('sUnit').value = S.unit; $('vUnit').textContent = `Dit ${S.unit} ms · Dah ${S.unit * 3} ms · ${Math.round(1200 / S.unit)} WpM`;
+  $('sThr').value = S.thr; $('vThr').textContent = S.thr + ' ms';
+  $('sGap').value = S.gap; $('vGap').textContent = S.gap + ' ms';
+  $('sVol').value = S.vol; $('vVol').textContent = S.vol + ' %';
+  $('sDigits').checked = S.digits; $('sCodes').checked = S.codes; $('sUml').checked = S.uml;
+  document.querySelectorAll('#orient button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.o === 'dit') === S.ditLeft));
+  $('wpmLabel').textContent = `${S.freq} Hz · ${Math.round(1200 / S.unit)} WpM`;
+}
+const openSheet = () => { $('sheet').hidden = false; $('backdrop').hidden = false; };
+const closeSheet = () => { $('sheet').hidden = true; $('backdrop').hidden = true; };
+$('btnSettings').onclick = openSheet; $('btnClose').onclick = closeSheet; $('backdrop').onclick = closeSheet;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('sheet').hidden) closeSheet(); });
+$('sFreq').oninput = e => { S.freq = +e.target.value; syncSettingsUI(); save(); };
+$('sFreq').onchange = () => { if (ensureAudio()) tone(ac.currentTime + .01, S.unit * 3 / 1000); };
+$('sUnit').oninput = e => { S.unit = +e.target.value; syncSettingsUI(); save(); if (mode === 'lookup') renderLookup(); };
+$('sUnit').onchange = () => playSequence([{code:'-.-.'}]);
+$('sThr').oninput = e => { S.thr = +e.target.value; syncSettingsUI(); updateKeyHint(); save(); };
+$('sGap').oninput = e => { S.gap = +e.target.value; syncSettingsUI(); save(); };
+$('sVol').oninput = e => { S.vol = +e.target.value; syncSettingsUI(); save(); if (master) master.gain.value = (S.vol/100) * 0.4; };
+$('sDigits').onchange = e => { S.digits = e.target.checked; save(); buildTree(); };
+$('sCodes').onchange = e => { S.codes = e.target.checked; save(); svg.classList.toggle('hide-codes', !S.codes); };
+$('sUml').onchange = e => { S.uml = e.target.checked; save(); if (mode === 'quiz') newTarget(); };
+document.querySelectorAll('#orient button').forEach(b => b.onclick = () => { S.ditLeft = b.dataset.o === 'dit'; save(); syncSettingsUI(); buildTree(); });
+
+/* ---------- Boot ---------- */
+syncSettingsUI(); buildTree(); renderKeys();
+tape = 'MORSE'.split('').map(t => ({t})); renderTape();
+renderBuffer();
+lightPath(MORSE.R, 'on');
+setTimeout(clearLights, 1600);
+window.addEventListener('resize', () => applyVB());
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>
