@@ -1,6 +1,6 @@
 // MorseTree service worker: app shell offline, fonts cached on first use.
 // All paths are relative to the SW scope, so it works at "/" (Vercel) and "/morsetree/" (GitHub Pages).
-const VERSION = 'morsetree-v5';
+const VERSION = 'morsetree-v6';
 const BASE = self.registration.scope;
 const SHELL = ['', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-192.png', 'icons/maskable-512.png'].map(p => new URL(p, BASE).href);
 
