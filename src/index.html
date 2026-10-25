@@ -57,13 +57,15 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--amber);outline-
 .icon-btn svg{width:20px;height:20px}
 
 /* Board */
-.board{flex:1;min-height:0;position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--mask);
+.board{flex:1;min-height:0;position:relative;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;border:1px solid var(--mask);
   background:radial-gradient(120% 80% at 50% 0%, #11281c 0%, var(--board-2) 60%, var(--board) 100%)}
-#tree{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#tree{width:100%;flex:1;min-height:0;display:block;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
 #tree:active{cursor:grabbing}
-.zoom{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}
+.board-foot{flex:none;display:flex;align-items:center;gap:8px;padding:0 8px 8px 12px}
+.zoom{display:flex;gap:6px;margin-left:auto}
 .zoom button{width:34px;height:34px;border-radius:8px;border:1px solid var(--mask);background:#0b1a13e6;color:var(--silk);font-family:var(--f-mono);font-size:1rem;cursor:pointer}
-.hintline{position:absolute;left:12px;bottom:10px;font-family:var(--f-mono);font-size:.68rem;color:var(--silk-dim);letter-spacing:.04em;pointer-events:none}
+.hintline{flex:1;min-width:0;font-family:var(--f-mono);font-size:.66rem;color:var(--silk-dim);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (hover:none){.hintline .desk{display:none}}
 
 /* SVG parts */
 .board-rect{fill:none;stroke:#1d3d2b;stroke-width:1.5}
@@ -192,11 +194,13 @@ input[type=range]{width:100%;accent-color:var(--led-g)}
 
   <section class="board" aria-label="Morse code tree">
     <svg id="tree" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Morse binary tree, tap a node to play it"></svg>
-    <div class="hintline" id="hintline">Tap a node · drag · pinch to zoom · Desktop: space bar = key</div>
-    <div class="zoom">
-      <button id="zIn" aria-label="Zoom in">+</button>
-      <button id="zOut" aria-label="Zoom out">−</button>
-      <button id="zFit" aria-label="Show whole tree">⤢</button>
+    <div class="board-foot">
+      <div class="hintline" id="hintline">Tap a node · drag · pinch to zoom<span class="desk"> · space bar = key</span></div>
+      <div class="zoom">
+        <button id="zIn" aria-label="Zoom in">+</button>
+        <button id="zOut" aria-label="Zoom out">−</button>
+        <button id="zFit" aria-label="Show whole tree">⤢</button>
+      </div>
     </div>
   </section>
 
