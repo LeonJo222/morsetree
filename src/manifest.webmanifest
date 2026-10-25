@@ -1,8 +1,8 @@
 {
-  "name": "MorseTree – Morsecode-Trainer",
+  "name": "MorseTree – Morse Code Trainer",
   "short_name": "MorseTree",
-  "description": "Interaktiver Morsecode-Trainer mit Entscheidungsbaum, Morsetaste und Übungsmodus.",
-  "lang": "de",
+  "description": "Interactive Morse code trainer with a decision tree, a straight key and a practice mode.",
+  "lang": "en",
   "id": "./",
   "start_url": "./",
   "scope": "./",

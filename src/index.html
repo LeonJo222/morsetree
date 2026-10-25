@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#09140f">
-<meta name="description" content="Interaktiver Morsecode-Trainer mit Entscheidungsbaum, Morsetaste und Übungsmodus.">
+<meta name="description" content="Interactive Morse code trainer with a decision tree, a straight key and a practice mode.">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -160,6 +160,19 @@ input[type=range]{width:100%;accent-color:var(--led-g)}
 .toggle input{width:20px;height:20px;accent-color:var(--led-g)}
 .help{font-size:.78rem;color:var(--silk-dim);line-height:1.45;max-width:60ch}
 
+/* Start overlay: one tap unlocks audio (browsers block sound before a user gesture) */
+.start{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:radial-gradient(70% 55% at 50% 50%, #0e2a1cdd, #020604f0);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.start-in{display:flex;flex-direction:column;align-items:center;gap:20px;text-align:center;max-width:300px}
+.start-btn{width:150px;height:150px;border-radius:50%;border:3px solid var(--copper);background:radial-gradient(circle at 50% 42%, #1d5036, #0d2619 72%);
+  color:var(--led-g);font-family:var(--f-display);font-weight:700;font-size:1.45rem;letter-spacing:.2em;padding-left:.2em;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  box-shadow:0 0 0 9px var(--board-2),0 0 0 11px var(--copper-dim),0 0 40px #5dfc9c40;animation:pulse 2.4s ease-in-out infinite;touch-action:manipulation}
+.start-btn:active{transform:scale(.97)}
+.start-btn .led{width:16px;height:16px;border-radius:50%;background:var(--led-g);box-shadow:0 0 14px var(--led-g)}
+@keyframes pulse{50%{box-shadow:0 0 0 9px var(--board-2),0 0 0 11px var(--copper-dim),0 0 70px #5dfc9c80}}
+.start .help{margin:0;text-align:center}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -167,62 +180,62 @@ input[type=range]{width:100%;accent-color:var(--led-g)}
 <div class="app">
   <header class="top">
     <div class="brand"><h1>MorseTree</h1><span class="chip">MT-01</span></div>
-    <nav class="tabs" role="tablist" aria-label="Modus">
-      <button role="tab" data-mode="tree" aria-selected="true" id="tab-tree">Baum</button>
-      <button role="tab" data-mode="quiz" aria-selected="false" id="tab-quiz">Übung</button>
-      <button role="tab" data-mode="lookup" aria-selected="false" id="tab-lookup">Nachschlagen</button>
+    <nav class="tabs" role="tablist" aria-label="Mode">
+      <button role="tab" data-mode="tree" aria-selected="true" id="tab-tree">Tree</button>
+      <button role="tab" data-mode="quiz" aria-selected="false" id="tab-quiz">Practice</button>
+      <button role="tab" data-mode="lookup" aria-selected="false" id="tab-lookup">Lookup</button>
     </nav>
-    <button class="icon-btn" id="btnSettings" aria-label="Einstellungen">
+    <button class="icon-btn" id="btnSettings" aria-label="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
     </button>
   </header>
 
-  <section class="board" aria-label="Morsecode-Baum">
-    <svg id="tree" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Morse-Binärbaum, antippen zum Abspielen"></svg>
-    <div class="hintline" id="hintline">Knoten antippen · ziehen · zwei Finger zoomen · Desktop: Leertaste = Morsetaste</div>
+  <section class="board" aria-label="Morse code tree">
+    <svg id="tree" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Morse binary tree, tap a node to play it"></svg>
+    <div class="hintline" id="hintline">Tap a node · drag · pinch to zoom · Desktop: space bar = key</div>
     <div class="zoom">
-      <button id="zIn" aria-label="Vergrößern">+</button>
-      <button id="zOut" aria-label="Verkleinern">−</button>
-      <button id="zFit" aria-label="Ganzen Baum zeigen">⤢</button>
+      <button id="zIn" aria-label="Zoom in">+</button>
+      <button id="zOut" aria-label="Zoom out">−</button>
+      <button id="zFit" aria-label="Show whole tree">⤢</button>
     </div>
   </section>
 
-  <!-- Panel: Baum -->
+  <!-- Panel: tree -->
   <section class="panel" id="panel-tree">
-    <div class="row" style="justify-content:space-between"><span class="label">Ausgabe</span><span class="label" id="wpmLabel"></span></div>
+    <div class="row" style="justify-content:space-between"><span class="label">Output</span><span class="label" id="wpmLabel"></span></div>
     <div class="row">
       <div class="tape" id="tape" aria-live="polite"></div>
-      <button class="btn ghost" id="btnSpace">Leer</button>
-      <button class="btn ghost" id="btnClear">Löschen</button>
+      <button class="btn ghost" id="btnSpace">Space</button>
+      <button class="btn ghost" id="btnClear">Clear</button>
     </div>
   </section>
 
-  <!-- Panel: Übung -->
+  <!-- Panel: practice -->
   <section class="panel" id="panel-quiz" hidden>
     <div class="row">
       <div class="seg" id="quizType">
-        <button data-q="letter" aria-pressed="true">Buchstabe</button>
-        <button data-q="word" aria-pressed="false">Wort</button>
-        <button data-q="audio" aria-pressed="false">Hören</button>
+        <button data-q="letter" aria-pressed="true">Letter</button>
+        <button data-q="word" aria-pressed="false">Word</button>
+        <button data-q="audio" aria-pressed="false">Listen</button>
       </div>
       <div class="score" id="score"></div>
     </div>
     <div class="quiz-main">
       <div class="target" id="target"></div>
       <div class="row" style="margin-left:auto">
-        <button class="btn ghost" id="btnReplay" hidden>Hören</button>
-        <button class="btn ghost" id="btnHint">Hinweis</button>
-        <button class="btn ghost" id="btnSkip">Weiter</button>
+        <button class="btn ghost" id="btnReplay" hidden>Replay</button>
+        <button class="btn ghost" id="btnHint">Hint</button>
+        <button class="btn ghost" id="btnSkip">Skip</button>
       </div>
     </div>
     <div class="feedback" id="feedback" aria-live="polite"></div>
   </section>
 
-  <!-- Panel: Nachschlagen -->
+  <!-- Panel: lookup -->
   <section class="panel" id="panel-lookup" hidden>
     <div class="row">
-      <input class="lookup-in" id="lookupIn" type="text" value="SOS HALLO WELT" autocomplete="off" spellcheck="false" aria-label="Text zum Umwandeln" style="flex:1;width:auto;min-width:0">
-      <button class="btn primary" id="btnPlayAll">Abspielen</button>
+      <input class="lookup-in" id="lookupIn" type="text" value="SOS HELLO WORLD" autocomplete="off" spellcheck="false" aria-label="Text to convert" style="flex:1;width:auto;min-width:0">
+      <button class="btn primary" id="btnPlayAll">Play</button>
     </div>
     <div class="chips" id="chips"></div>
     <div class="note" id="lookupNote"></div>
@@ -233,7 +246,7 @@ input[type=range]{width:100%;accent-color:var(--led-g)}
     <div class="strip">
       <div class="buf" id="buf"></div>
       <div class="cand" id="cand"></div>
-      <button class="del" id="btnDel" aria-label="Eingabe zurücknehmen">
+      <button class="del" id="btnDel" aria-label="Undo last input">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M9 5h11v14H9l-6-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/></svg>
       </button>
     </div>
@@ -241,45 +254,53 @@ input[type=range]{width:100%;accent-color:var(--led-g)}
   </section>
 </div>
 
+<div class="start" id="startOverlay" role="dialog" aria-label="Start MorseTree">
+  <div class="start-in">
+    <span class="label">MT-01 · MorseTree</span>
+    <button class="start-btn" id="btnStart"><span class="led"></span>START</button>
+    <p class="help">Tap to switch on the sound. Browsers only play audio after your first tap.</p>
+  </div>
+</div>
+
 <div class="backdrop" id="backdrop" hidden></div>
-<div class="sheet" id="sheet" hidden role="dialog" aria-label="Einstellungen">
+<div class="sheet" id="sheet" hidden role="dialog" aria-label="Settings">
   <div class="sheet-in">
-    <div class="row" style="justify-content:space-between"><h2>Einstellungen</h2><button class="btn ghost" id="btnClose">Fertig</button></div>
+    <div class="row" style="justify-content:space-between"><h2>Settings</h2><button class="btn ghost" id="btnClose">Done</button></div>
 
     <div class="field">
-      <span class="label">Baum-Ausrichtung</span>
+      <span class="label">Tree orientation</span>
       <div class="seg" id="orient">
-        <button data-o="dah" aria-pressed="true">Strich links</button>
-        <button data-o="dit" aria-pressed="false">Punkt links</button>
+        <button data-o="dah" aria-pressed="true">Dah left</button>
+        <button data-o="dit" aria-pressed="false">Dit left</button>
       </div>
     </div>
 
     <div class="field">
-      <div class="field-top"><label class="label" for="sFreq">Tonfrequenz</label><span class="val" id="vFreq"></span></div>
+      <div class="field-top"><label class="label" for="sFreq">Tone frequency</label><span class="val" id="vFreq"></span></div>
       <input type="range" id="sFreq" min="500" max="900" step="10">
     </div>
     <div class="field">
-      <div class="field-top"><label class="label" for="sUnit">Punktlänge (Dit)</label><span class="val" id="vUnit"></span></div>
+      <div class="field-top"><label class="label" for="sUnit">Dit length</label><span class="val" id="vUnit"></span></div>
       <input type="range" id="sUnit" min="50" max="140" step="5">
-      <p class="help" style="margin:0">Gilt für die Wiedergabe beim Abspielen. Strich = 3 Punkte, Pause im Zeichen = 1 Punkt, zwischen Zeichen = 3, zwischen Wörtern = 7. Tempo nach PARIS-Norm: WpM = 1200 ÷ Punktlänge in ms.</p>
+      <p class="help" style="margin:0">Used for playback. Dah = 3 dits, gap inside a character = 1 dit, between characters = 3, between words = 7. Speed per the PARIS standard: WPM = 1200 ÷ dit length in ms.</p>
     </div>
     <div class="field">
-      <div class="field-top"><label class="label" for="sThr">Grenze Punkt / Strich</label><span class="val" id="vThr"></span></div>
+      <div class="field-top"><label class="label" for="sThr">Dit / dah threshold</label><span class="val" id="vThr"></span></div>
       <input type="range" id="sThr" min="100" max="500" step="10">
-      <p class="help" style="margin:0">Drückst du die Taste kürzer als diesen Wert, zählt es als Punkt, sonst als Strich. Während du hältst, wechselt die Anzeige an der Taste von · zu –, sobald die Grenze überschritten ist.</p>
+      <p class="help" style="margin:0">A press shorter than this counts as a dit, anything longer as a dah. While you hold the key, its indicator switches from · to – as soon as you pass the threshold.</p>
     </div>
     <div class="field">
-      <div class="field-top"><label class="label" for="sGap">Pause bis Zeichenende</label><span class="val" id="vGap"></span></div>
+      <div class="field-top"><label class="label" for="sGap">Pause before character ends</label><span class="val" id="vGap"></span></div>
       <input type="range" id="sGap" min="300" max="2000" step="50">
-      <p class="help" style="margin:0">So lange wartet die Taste nach dem letzten Signal, bevor das Zeichen abgeschlossen wird.</p>
+      <p class="help" style="margin:0">How long the key waits after your last signal before it completes the character.</p>
     </div>
     <div class="field">
-      <div class="field-top"><label class="label" for="sVol">Lautstärke</label><span class="val" id="vVol"></span></div>
+      <div class="field-top"><label class="label" for="sVol">Volume</label><span class="val" id="vVol"></span></div>
       <input type="range" id="sVol" min="0" max="100" step="5">
     </div>
-    <label class="toggle"><span>Ziffern-Ebene (5. Ebene) anzeigen</span><input type="checkbox" id="sDigits"></label>
-    <label class="toggle"><span>Codes unter den Buchstaben</span><input type="checkbox" id="sCodes"></label>
-    <label class="toggle"><span>Umlaute und CH in der Übung</span><input type="checkbox" id="sUml"></label>
+    <label class="toggle"><span>Show digit level (5th level)</span><input type="checkbox" id="sDigits"></label>
+    <label class="toggle"><span>Codes below the letters</span><input type="checkbox" id="sCodes"></label>
+    <label class="toggle"><span>Include Ä, Ö, Ü and CH in practice</span><input type="checkbox" id="sUml"></label>
   </div>
 </div>
 
@@ -290,7 +311,7 @@ const MORSE = {A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',
   'Ä':'.-.-','Ö':'---.','Ü':'..--','CH':'----','0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....','6':'-....','7':'--...','8':'---..','9':'----.'};
 const C2L = {}; for (const k in MORSE) C2L[MORSE[k]] = k;
 const show = c => c.replace(/\./g,'·').replace(/-/g,'–');
-const WORDS = ['SOS','BAUM','FUNK','CODE','TASTE','HALLO','MORSE','PUNKT','STRICH','SIGNAL','ANTENNE','WELLE','RUFEN','FREQUENZ','LICHT','QUARZ','PEGEL','EMPFANG','SENDER','KANAL'];
+const WORDS = ['SOS','TREE','RADIO','CODE','KEY','HELLO','MORSE','SIGNAL','ANTENNA','WAVE','LIGHT','QUARTZ','CALL','RELAY','STATION','BEACON','DOT','DASH','TONE','CHANNEL'];
 
 const $ = id => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
@@ -329,7 +350,7 @@ function stopPlayback(){
   timers.forEach(clearTimeout); timers = [];
   if (seqBus) { try { seqBus.disconnect(); } catch (e) {} seqBus = null; }
   document.querySelectorAll('.lchip.active').forEach(c => c.classList.remove('active'));
-  playingAll = false; $('btnPlayAll').textContent = 'Abspielen';
+  playingAll = false; $('btnPlayAll').textContent = 'Play';
 }
 function later(ms, fn){ timers.push(setTimeout(fn, Math.max(0, ms))); }
 /* tokens: [{code, ref?}] or {word:true}; onSym(tok, i), onTok(tok), onEnd() */
@@ -377,7 +398,7 @@ function buildTree(){
   el('rect', {x:4, y:4, width:G.W-8, height:G.H-8, rx:18, class:'board-rect'}, svg);
   [[22,22],[G.W-22,22],[22,G.H-22],[G.W-22,G.H-22]].forEach(([x,y]) => el('circle', {cx:x, cy:y, r:6, class:'hole'}, svg));
   el('text', {x:40, y:27, class:'silk-strong'}, svg).textContent = 'MORSETREE';
-  el('text', {x:G.W-40, y:27, class:'silk', 'text-anchor':'end'}, svg).textContent = 'MT-01 · REV.A · ' + (S.digits ? '5' : '4') + ' EBENEN';
+  el('text', {x:G.W-40, y:27, class:'silk', 'text-anchor':'end'}, svg).textContent = 'MT-01 · REV.A · ' + (S.digits ? '5' : '4') + ' LEVELS';
   const L = S.ditLeft ? '◂ DIT  ·' : '◂ DAH  –', R = S.ditLeft ? '–  DAH ▸' : '·  DIT ▸';
   const root = nodePos('');
   el('text', {x:root.x - 34, y:root.y + 4, class:'silk', 'text-anchor':'end'}, svg).textContent = L;
@@ -502,7 +523,7 @@ const Q = {type:'letter', target:[], idx:0, hits:0, streak:0, best:0, solved:fal
 /* Straight key: one button. Press duration decides Dit vs. Dah. Tone sounds exactly as long as the key is held. */
 let hold = null, keyEl = null, symEl = null;
 function renderKeys(){
-  $('keys').innerHTML = `<button class="key" id="mkey" aria-label="Morsetaste: kurz drücken für Punkt, lang drücken für Strich"><span class="sym dit" id="mkeySym"></span><span class="kt"><span class="kl">MORSETASTE</span><span class="kh" id="mkeyHint"></span></span></button>`;
+  $('keys').innerHTML = `<button class="key" id="mkey" aria-label="Morse key: short press for dit, long press for dah"><span class="sym dit" id="mkeySym"></span><span class="kt"><span class="kl">MORSE KEY</span><span class="kh" id="mkeyHint"></span></span></button>`;
   keyEl = $('mkey'); symEl = $('mkeySym');
   keyEl.addEventListener('pointerdown', e => { e.preventDefault(); try { keyEl.setPointerCapture(e.pointerId); } catch (_) {} keyDown(); });
   keyEl.addEventListener('pointerup', keyUp);
@@ -510,7 +531,7 @@ function renderKeys(){
   keyEl.addEventListener('contextmenu', e => e.preventDefault());
   updateKeyHint();
 }
-function updateKeyHint(){ const h = $('mkeyHint'); if (h) h.textContent = `kurz · unter ${S.thr} ms   lang – ab ${S.thr} ms`; }
+function updateKeyHint(){ const h = $('mkeyHint'); if (h) h.textContent = `short · under ${S.thr} ms   long – from ${S.thr} ms`; }
 function keyDown(){
   if (mode === 'lookup' || hold) return;
   if (!ensureAudio()) return;
@@ -555,7 +576,7 @@ function renderBuffer(pend){
     b.innerHTML = [...buffer].map(s => `<i class="${s === '.' ? 'dit' : 'dah'}"></i>`).join('') + `<i class="${pend === '.' ? 'dit' : 'dah'} pend"></i>`;
     c.textContent = ''; return;
   }
-  if (!buffer) { b.innerHTML = `<span class="ph">${mode === 'quiz' ? 'EINGABE' : 'TASTE ODER BAUM'}</span>`; b.classList.remove('bad'); c.textContent = ''; c.classList.remove('bad'); return; }
+  if (!buffer) { b.innerHTML = `<span class="ph">${mode === 'quiz' ? 'YOUR INPUT' : 'KEY OR TAP THE TREE'}</span>`; b.classList.remove('bad'); c.textContent = ''; c.classList.remove('bad'); return; }
   b.innerHTML = [...buffer].map(s => `<i class="${s === '.' ? 'dit' : 'dah'}"></i>`).join('');
   const L = C2L[buffer]; const deep = !padEls[buffer];
   b.classList.toggle('bad', deep); c.classList.toggle('bad', !L);
@@ -617,7 +638,7 @@ function newTarget(){
   Q.idx = 0; Q.solved = false; Q.revealed = false;
   if (Q.type === 'word') { let w; do { w = WORDS[Math.floor(Math.random() * WORDS.length)]; } while (Q.target.join('') === w && WORDS.length > 1); Q.target = tokenizeWord(w); }
   else { const p = pool(); let l; do { l = p[Math.floor(Math.random() * p.length)]; } while (Q.target[0] === l && p.length > 1); Q.target = [l]; }
-  setFeedback(Q.type === 'audio' ? 'Hör zu und taste das Zeichen nach.' : 'Taste den Code oder tippe den Knoten im Baum.', '');
+  setFeedback(Q.type === 'audio' ? 'Listen, then key the character you heard.' : 'Key the code or tap the node in the tree.', '');
   renderQuiz(); clearLights();
   if (Q.type === 'audio') later(250, () => playSequence([{code:MORSE[Q.target[0]]}]));
 }
@@ -630,7 +651,7 @@ function renderQuiz(){
     return `<div class="cell ${cls}">${hidden ? '?' : l}</div>`;
   }).join('');
   $('btnReplay').hidden = Q.type !== 'audio';
-  $('score').innerHTML = `Treffer <b>${Q.hits}</b> · Serie <b>${Q.streak}</b><br>Bestwert <b>${Q.best}</b>`;
+  $('score').innerHTML = `Correct <b>${Q.hits}</b> · Streak <b>${Q.streak}</b><br>Best <b>${Q.best}</b>`;
   document.querySelectorAll('#quizType button').forEach(b => b.setAttribute('aria-pressed', b.dataset.q === Q.type));
 }
 function setFeedback(msg, cls){ const f = $('feedback'); f.textContent = msg; f.className = 'feedback ' + (cls || ''); }
@@ -642,12 +663,12 @@ function answer(L, code){
     flash(code, 'on', 500);
     if (Q.idx >= Q.target.length) {
       Q.solved = true; Q.hits++; if (!Q.revealed) { Q.streak++; Q.best = Math.max(Q.best, Q.streak); }
-      setFeedback(`Richtig: ${Q.target.join('')}  ${Q.target.map(l => show(MORSE[l])).join('  ')}`, 'ok');
+      setFeedback(`Correct: ${Q.target.join('')}  ${Q.target.map(l => show(MORSE[l])).join('  ')}`, 'ok');
       renderQuiz(); later(1100, newTarget);
-    } else { setFeedback(`${want} richtig. Weiter mit Zeichen ${Q.idx + 1} von ${Q.target.length}.`, 'ok'); renderQuiz(); }
+    } else { setFeedback(`${want} is right. Next: character ${Q.idx + 1} of ${Q.target.length}.`, 'ok'); renderQuiz(); }
   } else {
     Q.streak = 0;
-    setFeedback(`${L ? L + ' (' + show(code) + ')' : show(code) + ' ist kein Zeichen'} – gesucht ist ${Q.type === 'audio' ? 'ein anderes Zeichen' : want}. Nochmal.`, 'bad');
+    setFeedback(`${L ? L + ' (' + show(code) + ')' : show(code) + ' is not a character'} – the answer is ${Q.type === 'audio' ? 'a different character' : want}. Try again.`, 'bad');
     renderQuiz();
     flash(code, 'err', 800);
   }
@@ -655,7 +676,7 @@ function answer(L, code){
 $('btnHint').onclick = () => {
   if (mode !== 'quiz' || Q.solved) return;
   const want = Q.target[Q.idx]; Q.revealed = true; Q.streak = 0;
-  setFeedback(`Hinweis: ${want} = ${show(MORSE[want])}`, 'hint'); renderQuiz();
+  setFeedback(`Hint: ${want} = ${show(MORSE[want])}`, 'hint'); renderQuiz();
   clearTimeout(flashT); clearLights(); lightPath(MORSE[want], 'hint');
   flashT = setTimeout(clearLights, 2200);
 };
@@ -688,7 +709,7 @@ function renderLookup(){
   });
   const units = toks.reduce((n, t) => t.word ? n + 4 : n + [...t.code].reduce((a, s) => a + (s === '.' ? 2 : 4), 0) + 2, 0);
   const sec = (units * S.unit / 1000).toFixed(1);
-  $('lookupNote').textContent = (toks.length ? `${toks.filter(t => !t.word).length} Zeichen · ca. ${sec} s bei ${Math.round(1200 / S.unit)} WpM` : 'Text eingeben, um den Code zu sehen.') + (ignored.length ? ` · nicht im Code: ${ignored.join(' ')}` : '');
+  $('lookupNote').textContent = (toks.length ? `${toks.filter(t => !t.word).length} characters · about ${sec} s at ${Math.round(1200 / S.unit)} WPM` : 'Type some text to see its code.') + (ignored.length ? ` · not in Morse code: ${ignored.join(' ')}` : '');
 }
 $('lookupIn').addEventListener('input', renderLookup);
 $('btnPlayAll').onclick = () => {
@@ -699,7 +720,7 @@ $('btnPlayAll').onclick = () => {
     onSym: (t, i) => { clearLights(); lightPath(t.code.slice(0, i + 1)); },
     onEnd: () => { stopPlayback(); clearLights(); }
   });
-  playingAll = true; $('btnPlayAll').textContent = 'Stopp';
+  playingAll = true; $('btnPlayAll').textContent = 'Stop';
 };
 
 /* ---------- Modes ---------- */
@@ -719,6 +740,7 @@ $('btnClear').onclick = () => { tape = []; renderTape(); clearLights(); };
 
 /* ---------- Keyboard ---------- */
 document.addEventListener('keydown', e => {
+  if (!$('startOverlay').hidden) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); startApp(); } return; }
   if (e.target.tagName === 'INPUT' || !$('sheet').hidden) return;
   if (e.key === ' ') { e.preventDefault(); if (!e.repeat) keyDown(); return; }
   if (e.key === 'Enter') { e.preventDefault(); commit(); }
@@ -729,13 +751,13 @@ document.addEventListener('keyup', e => { if (e.key === ' ') { e.preventDefault(
 /* ---------- Settings UI ---------- */
 function syncSettingsUI(){
   $('sFreq').value = S.freq; $('vFreq').textContent = S.freq + ' Hz';
-  $('sUnit').value = S.unit; $('vUnit').textContent = `Dit ${S.unit} ms · Dah ${S.unit * 3} ms · ${Math.round(1200 / S.unit)} WpM`;
+  $('sUnit').value = S.unit; $('vUnit').textContent = `Dit ${S.unit} ms · Dah ${S.unit * 3} ms · ${Math.round(1200 / S.unit)} WPM`;
   $('sThr').value = S.thr; $('vThr').textContent = S.thr + ' ms';
   $('sGap').value = S.gap; $('vGap').textContent = S.gap + ' ms';
   $('sVol').value = S.vol; $('vVol').textContent = S.vol + ' %';
   $('sDigits').checked = S.digits; $('sCodes').checked = S.codes; $('sUml').checked = S.uml;
   document.querySelectorAll('#orient button').forEach(b => b.setAttribute('aria-pressed', (b.dataset.o === 'dit') === S.ditLeft));
-  $('wpmLabel').textContent = `${S.freq} Hz · ${Math.round(1200 / S.unit)} WpM`;
+  $('wpmLabel').textContent = `${S.freq} Hz · ${Math.round(1200 / S.unit)} WPM`;
 }
 const openSheet = () => { $('sheet').hidden = false; $('backdrop').hidden = false; };
 const closeSheet = () => { $('sheet').hidden = true; $('backdrop').hidden = true; };
@@ -753,6 +775,18 @@ $('sCodes').onchange = e => { S.codes = e.target.checked; save(); svg.classList.
 $('sUml').onchange = e => { S.uml = e.target.checked; save(); if (mode === 'quiz') newTarget(); };
 document.querySelectorAll('#orient button').forEach(b => b.onclick = () => { S.ditLeft = b.dataset.o === 'dit'; save(); syncSettingsUI(); buildTree(); });
 
+/* ---------- Start ---------- */
+function startApp(){
+  if ($('startOverlay').hidden) return;
+  $('startOverlay').hidden = true;
+  // Play K (-.-), the Morse prosign for "go ahead", and light its path.
+  playSequence([{code:'-.-'}], {
+    onSym: (t, i) => { clearLights(); lightPath('-.-'.slice(0, i + 1)); },
+    onEnd: () => { flashT = setTimeout(clearLights, 300); }
+  });
+}
+$('btnStart').addEventListener('click', startApp);
+
 /* ---------- Boot ---------- */
 syncSettingsUI(); buildTree(); renderKeys();
 tape = 'MORSE'.split('').map(t => ({t})); renderTape();
@@ -760,6 +794,7 @@ renderBuffer();
 lightPath(MORSE.R, 'on');
 setTimeout(clearLights, 1600);
 window.addEventListener('resize', () => applyVB());
+try { $('btnStart').focus({preventScroll:true}); } catch (_) {}
 })();
 </script>
 <script>
